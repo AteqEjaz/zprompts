@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Prompt Library Popup</title>
+  <style>
+    :root{
+      --bg:#0b1020a6;--sheet:#fff;--text:#0f172a;--muted:#6b7280;--line:#e5e7eb;--pill:#eef2ff;--pill-text:#E68c12;
+      --btn:#4f46e5;--btn-text:#fff;--btn-hover:#4338ca;--radius:16px;--shadow:0 28px 64px rgba(2,6,23,.22);
+    }
+    body{margin:0;font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial;color:var(--text)}
+    .topbar{padding:14px 16px;border-bottom:1px solid var(--line)}
+    .link{color:var(--btn);text-decoration:none;font-weight:700}
+    .link:hover{text-decoration:underline}
+
+    /* Modal (bigger) */
+    .pl-overlay{position:fixed;inset:0;background:var(--bg);display:none;align-items:center;justify-content:center;z-index:9999}
+    .pl-overlay[open]{display:flex}
+    .pl-sheet{
+      width:min(1400px,96vw);
+      max-height:90vh;
+      background:var(--sheet);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      border:1px solid var(--line);
+      display:flex;flex-direction:column;overflow:hidden
+    }
+    .pl-header{display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line)}
+    .pl-title{color:#E68612;font-size:20px;font-weight:800;margin:0}
+    .pl-sub{color:var(--muted)}
+    .pl-close{margin-left:auto;border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 10px;cursor:pointer}
+
+    .pl-toolbar{display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding:12px 18px;border-bottom:1px solid var(--line)}
+    .pl-search{flex:1;display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:999px;padding:10px 14px}
+    .pl-search input{border:0;outline:none;background:transparent;width:100%}
+
+    .pl-chips{display:flex;gap:8px;flex-wrap:wrap;padding:0 18px 12px}
+    .pl-chip{padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:#fff;cursor:pointer;user-select:none}
+    .pl-chip.active{background:var(--pill);border-color:#E68c12;color:var(--pill-text)}
+    .pl-chip .count{margin-left:6px;color:var(--muted)}
+
+    .pl-body{overflow:auto}
+    table{width:100%;border-collapse:separate;border-spacing:0}
+    thead th{position:sticky;top:0;background:#fff;font-size:12px;text-transform:uppercase;color:var(--muted);letter-spacing:.04em;text-align:left;padding:12px 16px;border-bottom:1px solid var(--line)}
+    tbody td{padding:12px 16px;border-bottom:1px solid var(--line);vertical-align:top}
+    tbody tr:hover{background:#fafafa}
+
+    .sortable{cursor:pointer;user-select:none}
+    .sortable .arrow{opacity:.35;margin-left:6px;display:inline-block}
+    .sortable.active .arrow{opacity:1}
+
+    .task{font-weight:700}
+    .prompt{color:var(--muted)}
+
+    .copy-btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:#fff;border-radius:9px;padding:6px 10px;cursor:pointer}
+    .copy-btn:hover{border-color:#c7cad1}
+    .copy-btn svg{width:15px;height:15px}
+
+    .empty{padding:28px;text-align:center;color:var(--muted)}
+    .error{padding:12px 18px;color:#b91c1c;background:#fee2e2;border-top:1px solid #fecaca}
+  </style>
+</head>
+<body>
+  <!-- Your menu / nav -->
+  <div class="topbar">
+    <a href="#" class="link" onclick="PromptPopup.open({ csvUrl: './zanndra-prompts.csv' })">Prompt Library</a>
+  </div>
+
+  <!-- Popup modal -->
+  <div id="plOverlay" class="pl-overlay" role="dialog" aria-modal="true" aria-labelledby="plTitle">
+    <div class="pl-sheet" role="document">
+      <div class="pl-header">
+        <h2 id="plTitle" class="pl-title">Prompt Library</h2>
+        <span class="pl-sub">Manage and use proven forensic analysis prompts</span>
+        <button class="pl-close" type="button" onclick="PromptPopup.close()">Close</button>
+      </div>
+
+      <div class="pl-toolbar">
+        <div class="pl-search" role="search">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="plQ" type="search" placeholder="Search task, prompt, category…" aria-label="Search prompts" />
+        </div>
+      </div>
+
+      <div id="plChips" class="pl-chips" aria-label="Filter by category"></div>
+
+      <div class="pl-body">
+        <table>
+          <thead>
+            <tr>
+              <th class="sortable" data-key="category">Category <span class="arrow">▾</span></th>
+              <th class="sortable" data-key="task">Task <span class="arrow">▾</span></th>
+              <th>Prompt</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="plTbody"></tbody>
+        </table>
+        <div id="plEmpty" class="empty" hidden>No prompts found.</div>
+        <div id="plError" class="error" hidden></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- CSV/TSV parser (auto-detects comma vs tab, supports quoted CSV) ---
+    function parseCSV(text){
+      text = text.replace(/^\uFEFF/, ''); // strip BOM
+      const lines = text.split(/\r?\n/);
+      if (!lines.length) return [];
+      const headerLine = lines[0] || '';
+      const commaCount = (headerLine.match(/,/g) || []).length;
+      const tabCount   = (headerLine.match(/\t/g) || []).length;
+      const useTab = tabCount > commaCount;
+
+      if (useTab) {
+        return lines.filter(l=>l.length).map(l=>l.split('\t'));
+      }
+
+      // CSV with quotes
+      const s = lines.join('\n');
+      const rows = [];
+      let cur = '', row = [], inQ = false;
+      for (let i = 0; i < s.length; i++) {
+        const c = s[i], n = s[i+1];
+        if (c === '"') {
+          if (inQ && n === '"') { cur += '"'; i++; }  // escaped quote
+          else { inQ = !inQ; }
+        } else if (c === ',' && !inQ) {
+          row.push(cur); cur = '';
+        } else if ((c === '\n' || c === '\r') && !inQ) {
+          if (cur !== '' || row.length) { row.push(cur); rows.push(row); row = []; cur=''; }
+        } else {
+          cur += c;
+        }
+      }
+      if (cur !== '' || row.length) { row.push(cur); rows.push(row); }
+      return rows;
+    }
+
+    // --- Popup module ---
+    const PromptPopup = (()=> {
+      const overlay   = document.getElementById('plOverlay');
+      const tbody     = document.getElementById('plTbody');
+      const empty     = document.getElementById('plEmpty');
+      const chipsWrap = document.getElementById('plChips');
+      const qInput    = document.getElementById('plQ');
+      const errBox    = document.getElementById('plError');
+
+      let DATA = []; // {category, task, prompt}
+      let state = { sortKey: 'category', sortDir: 'asc', q: '', category: 'All' };
+
+      function open(opts = {}) {
+        overlay.setAttribute('open','');
+        errBox.hidden = true; errBox.textContent = '';
+        if (opts.csvUrl) {
+          fetch(opts.csvUrl, {cache:'no-store'})
+            .then(r => { if(!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+            .then(loadCSVText)
+            .catch(e => { errBox.hidden = false; errBox.textContent = 'Failed to load CSV: ' + e.message; });
+        }
+      }
+      function close(){ overlay.removeAttribute('open'); }
+
+      // Close on ESC or overlay click
+      document.addEventListener('keydown', e => { if(e.key === 'Escape') close(); });
+      overlay.addEventListener('click', e => { if(e.target === overlay) close(); });
+
+      function loadCSVText(text){
+        const rows = parseCSV(text).filter(r => r.length);
+        if (!rows.length) { errBox.hidden = false; errBox.textContent = 'CSV is empty.'; return; }
+
+        // Expecting headers: Category, Task, Prompt (case-insensitive)
+        const headers = rows[0].map(h => (h || '').trim());
+        const idx = {
+          category: headers.findIndex(h => /^category$/i.test(h)),
+          task:     headers.findIndex(h => /^task$/i.test(h)),
+          prompt:   headers.findIndex(h => /^prompt$/i.test(h)),
+        };
+        DATA = rows.slice(1).map((r,i) => ({
+          id: i+1,
+          category: (r[idx.category] || '').trim(),
+          task:     (r[idx.task]     || '').trim(),
+          prompt:   (r[idx.prompt]   || '').trim(),
+        })).filter(x => x.category || x.task || x.prompt);
+
+        buildChips();
+        render();
+      }
+
+      function buildChips(){
+        chipsWrap.innerHTML = '';
+        const counts = DATA.reduce((m,r)=>{ m[r.category]=(m[r.category]||0)+1; return m; },{});
+        const cats = ['All', ...Object.keys(counts).sort()];
+        cats.forEach(cat=>{
+          const el = document.createElement('button');
+          el.className = 'pl-chip';
+          el.type = 'button';
+          el.textContent = cat;
+          const c = document.createElement('span');
+          c.className = 'count';
+          c.textContent = cat==='All' ? DATA.length : counts[cat];
+          el.appendChild(c);
+          el.addEventListener('click', ()=>{
+            document.querySelectorAll('.pl-chip').forEach(b=>b.classList.remove('active'));
+            el.classList.add('active');
+            state.category = cat; render();
+          });
+          if (cat==='All') el.classList.add('active');
+          chipsWrap.appendChild(el);
+        });
+      }
+
+      function setSort(key){
+        if (state.sortKey === key) state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+        else { state.sortKey = key; state.sortDir = 'asc'; }
+        document.querySelectorAll('th.sortable').forEach(th=>{
+          th.classList.toggle('active', th.dataset.key===state.sortKey);
+          th.querySelector('.arrow').textContent = state.sortDir==='asc' ? '▴' : '▾';
+        });
+        render();
+      }
+
+      function normalize(s){ return (s||'').toLowerCase(); }
+      function applyFilters(rows){
+        const q = normalize(state.q);
+        return rows.filter(r=>{
+          const hit = !q || [r.task,r.prompt,r.category].some(v=>normalize(v).includes(q));
+          const cat = state.category==='All' || r.category===state.category;
+          return hit && cat;
+        });
+      }
+      function applySort(rows){
+        const key = state.sortKey, dir = state.sortDir==='asc' ? 1 : -1;
+        return rows.slice().sort((a,b)=>{
+          const A = normalize(a[key]), B = normalize(b[key]);
+          return A < B ? -1*dir : A > B ? 1*dir : 0;
+        });
+      }
+
+      function render(){
+        const rows = applySort(applyFilters(DATA));
+        tbody.innerHTML = '';
+        rows.forEach(r=>{
+          const tr = document.createElement('tr');
+
+          const tdCat = document.createElement('td');
+          const chip = document.createElement('span'); chip.className='pl-chip'; chip.style.cursor='default'; chip.textContent=r.category; tdCat.appendChild(chip);
+
+          const tdTask = document.createElement('td'); tdTask.className='task'; tdTask.textContent = r.task;
+
+          const tdPrompt = document.createElement('td'); tdPrompt.className='prompt'; tdPrompt.textContent = r.prompt;
+
+          const tdCopy = document.createElement('td');
+          const btn = document.createElement('button'); btn.className='copy-btn'; btn.type='button'; btn.title='Copy prompt'; btn.setAttribute('aria-label','Copy prompt');
+          btn.innerHTML = icons.copy + '<span>Copy</span>';
+          btn.addEventListener('click', ()=> copyToClipboard(r.prompt));
+          tdCopy.appendChild(btn);
+
+          tr.appendChild(tdCat);
+          tr.appendChild(tdTask);
+          tr.appendChild(tdPrompt);
+          tr.appendChild(tdCopy);
+          tbody.appendChild(tr);
+        });
+        empty.hidden = rows.length !== 0;
+      }
+
+      function copyToClipboard(text){
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(()=>toast('Copied!'));
+        } else {
+          const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select();
+          try { document.execCommand('copy'); toast('Copied!'); } finally { document.body.removeChild(ta); }
+        }
+      }
+      function toast(msg){
+        const t=document.createElement('div'); t.textContent=msg;
+        t.style.cssText='position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:8px 12px;border-radius:10px;opacity:.95;z-index:10000';
+        document.body.appendChild(t); setTimeout(()=>t.remove(),1000);
+      }
+
+      // Events
+      document.addEventListener('click', e => {
+        const th = e.target.closest('th.sortable');
+        if (th) setSort(th.dataset.key);
+      });
+      qInput.addEventListener('input', e => { state.q = e.target.value; render(); });
+
+      return { open, close };
+    })();
+
+    // Only icon we keep (Copy)
+    const icons = {
+      copy: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>`
+    };
+  </script>
+</body>
+</html>
