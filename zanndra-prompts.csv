@@ -229,3 +229,43 @@ System Memory,Analysis of memory artifact,"The following data was recovered from
 USB Analysis,Produce a multi-column report of all the unique USB devices that have been attached to a system,"You now have access to a file named [USB-HISTORY.CSV]. Using this file and no other, analyze file and produce a multi-column report of all the unique USB devices that have been attached to this system. Identify the unique Item name, based on Serial Number"
 USN Journal,Identify evidence of unauthorized access to data,"Input: exports from MFT, USNJRNL AND LOGFILE FROM A WINDOWS SYSTEM in TXT, CSV, DOC, XLS, XLSX, PDF, or JSON. CROSS-CORRELATE THIS DATA AND PROVIDE A REPORT IF THERE IS ANY EVIDENCE that would indicate any attempt to access and copy data, any attempt to access an account by an account other than what appears to be its intended owner, any unauthorized access to accounts, any unauthorized access to systems, violate policy, steal funds, steal intellectual property, conspire with others to commit a crime, steal data or violations of sound information security / network security processes that can lead to any of the aforementioned. Include excerpts of the specific log data instead of just referencing the specific data source."
 Wi-Fi (WLAN),Provide a report of all Wi-Fi networks that were accessed after a specific date,"You now have access to data source named [WLAN.CSV]. Using this data and no other, provide a report of all Wi-Fi networks that were accessed after [DATE]. The report will include the SSID and last date of access."
+Cellphone Data Dump Forensic Analysis Prompt,"Your task is to analyze these raw activity logs in the **Data To Analyze:** section [BELOW OR ATTACHED], which are extracted from a mobile device logs and produce a structured report.","**Instructions:**
+
+1. **Identify Indicators of Malicious or Suspicious Activity**
+
+   * Attempts to **access and copy data** (e.g., file manager usage, download manager events, gallery access followed by network activity).
+   * Attempts to **access accounts** by parties other than the intended owner (e.g., Facebook login screens, WhatsApp registration, account setup wizards).
+   * Signs of **unauthorized access to systems or accounts**.
+   * Attempts to **steal funds, steal intellectual property, or conspire with others** (e.g., financial apps, suspicious communications).
+   * **Policy violations** or poor information security practices (e.g., downloading apps from untrusted sources, excessive configuration changes).
+
+2. **Correlate Activities**
+
+   * Note timelines of events that suggest intent (e.g., use of File Manager immediately followed by downloads or messaging apps).
+   * Identify repeated failed attempts (e.g., multiple zero-duration calls, repeated account login attempts).
+
+3. **Provide Evidence with Excerpts**
+
+   * Include **direct log excerpts** instead of only referencing timestamps.
+   * Example format:
+
+     > *Excerpt: `4/17/2019  6:20:34 AM   Facebook   com.facebook.katana.LoginActivity   Move to foreground`*
+     > This indicates a possible login attempt.
+
+4. **Structure the Report**
+
+   * **Executive Summary** – Overall findings of whether suspicious/malicious activity is present.
+   * **Detailed Findings** – Organized by category (Data Access, Unauthorized Logins, Policy Violations, etc.), with excerpts and interpretation.
+   * **Timeline Highlights** – Summarize critical sequences that could indicate intent or collusion.
+   * **Conclusion & Risk Assessment** – Whether the evidence suggests attempted or successful policy violations, data theft, unauthorized access, or security weaknesses.
+
+**Special Focus Areas:**
+
+* Look for use of **File Manager, Downloads, Browser, WhatsApp, Facebook, Email, Cloud Services** immediately following each other.
+* Note **account registration or login attempts** that may indicate someone trying to set up or hijack accounts.
+* Watch for **suspicious patterns** like repeated quick accesses, abnormal midnight activity, or repeated configuration changes.
+
+**Data To Analyze:**
+
+
+[DATA OR STATEMENT TO DATA GOES HERE]:"
